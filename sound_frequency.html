@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตัววัดความถี่เสียง</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        #frequency {
+            font-size: 2em;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>ตัววัดความถี่เสียง</h1>
+    <button onclick="startAnalyzing()">เริ่มวัดความถี่</button>
+    <button onclick="stopAnalyzing()">หยุดวัดความถี่</button>
+    <p id="frequency">ความถี่: - Hz</p>
+    
+    <script>
+        let audioContext, analyser, microphone, dataArray, intervalId;
+
+        async function startAnalyzing() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+            }
+
+            // **แก้ปัญหาบน iOS และ Chrome ที่อาจต้อง Resume AudioContext**
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+
+                if (!intervalId) {
+                    intervalId = setInterval(analyzeFrequency, 250); // อัปเดต 4 ครั้ง/วินาที
+                }
+            } catch (err) {
+                alert("ไม่สามารถเข้าถึงไมโครโฟนได้: " + err.message);
+            }
+        }
+
+        function analyzeFrequency() {
+            analyser.getByteFrequencyData(dataArray);
+            let maxIndex = 0;
+            let maxValue = 0;
+
+            for (let i = 0; i < dataArray.length; i++) {
+                if (dataArray[i] > maxValue) {
+                    maxValue = dataArray[i];
+                    maxIndex = i;
+                }
+            }
+
+            const nyquist = audioContext.sampleRate / 2;
+            const frequency = (maxIndex * nyquist) / analyser.frequencyBinCount;
+            document.getElementById('frequency').textContent = `ความถี่: ${frequency.toFixed(2)} Hz`;
+        }
+
+        function stopAnalyzing() {
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+                document.getElementById('frequency').textContent = "ความถี่: - Hz";
+            }
+        }
+    </script>
+</body>
+</html>
